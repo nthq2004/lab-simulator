@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>数字温控全功能仿真</title>
+    <style>
+        body { margin: 0; background: #1a1a1a; font-family: "Microsoft YaHei", sans-serif; overflow: hidden; color: white; }
+        #canvas { background: #ffffff; display: block; cursor: crosshair; }
+        .panel {
+            position: absolute; right: 20px; top: 20px; width: 280px;
+            background: rgba(35, 35, 35, 0.95); border: 2px solid #00d4ff;
+            padding: 15px; border-radius: 10px; z-index: 1000; cursor: move;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .btn {
+            display: block; width: 100%; margin: 6px 0; padding: 10px;
+            background: #333; border: 1px solid #555; color: #00d4ff;
+            cursor: pointer; font-size: 13px; border-radius: 4px; transition: 0.2s;
+        }
+        .btn:hover { background: #444; border-color: #00d4ff; }
+        .btn.active { background: #0088aa; color: white; border-color: #fff; }
+        .btn.fault { color: #ff6b6b; }
+        .btn.fault.active { background: #c0392b; color: white; border-color: #ff0000; }
+        hr { border: 0; border-top: 1px solid #444; margin: 10px 0; }
+        .info { font-size: 11px; color: #888; margin-top: 5px; }
+    </style>
+</head>
+<body>
+
+<div id="ctrl-panel" class="panel">
+    <h3 style="margin:0 0 10px; text-align:center;">数字温控器测试面板</h3>
+    <button class="btn" onclick="autoWire()">自动接线</button>
+    <button class="btn" id="start-btn" onclick="togglePower()">系统启动</button>
+    <button class="btn" onclick="resetSystem()">系统复位</button>
+    <hr>
+    <div style="font-size:12px; margin-bottom:5px;">故障设置 (互斥模式)</div>
+    <button class="btn fault" id="f1" onclick="setFault(1)">故障1</button>
+    <button class="btn fault" id="f2" onclick="setFault(2)">故障2</button>
+    <button class="btn fault" id="f3" onclick="setFault(3)">故障3</button>
+    <button class="btn fault" id="f4" onclick="setFault(4)">故障4</button>
+    <button class="btn" onclick="setFault(0)">清除所有故障</button>
+    <div class="info">※ 提示：组件可自由拖拽，点击接线柱手动接线</div>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+// --- 物理与PID核心参数 ---
+let isPowerOn = false, currentFault = 0;
+let actualTemp = 20.0, svValue = 50.0, pvValue = 20.0;
+let pidMode = 'AUTO', heatDuty = 0, coolDuty = 0;
+let kp=2.0, ki=0.2, kd=0.1, integralError = 0;
+let transZero = 0, transSpan = 0; // 变送器调节
+let thermalInertia = 0; // 热惯性累积
+const heatCapacity = 0.015; // 模拟大热容，数值越小升温越慢
+
+let connections = [], activePin = null, draggingComp = null, dragOffset = { x: 0, y: 0 };
+let monitorHistory = [], fanAngle = 0, draggingSlider = null, isSliderActive = false;
+
+// --- 组件定义 ---
+class Component {
+    constructor(id, x, y, w, h, name) {
+        this.id = id; this.x = x; this.y = y; this.w = w; this.h = h; this.name = name;
+        this.pins = [];
+    }
+    drawBase() {
+        ctx.save(); ctx.translate(this.x, this.y);
+        ctx.fillStyle = isPowerOn ? '#fff5f5' : '#f0f0f0';
+        if(['pid','monitor'].includes(this.id)) ctx.fillStyle = isPowerOn ? '#dcdcdc' : '#cfcfcf';
+        ctx.strokeStyle = '#2c3e50'; ctx.lineWidth = 2;
+        ctx.strokeRect(0, 0, this.w, this.h); ctx.fillRect(0, 0, this.w, this.h);
+        ctx.fillStyle = '#2c3e50'; ctx.font = 'bold 13px Arial'; ctx.fillText(this.name, 5, -10);
+        this.pins.forEach((p, idx) => {
+            ctx.beginPath(); ctx.arc(p.dx, p.dy, 6, 0, Math.PI * 2);
+            ctx.fillStyle = p.color || '#444'; ctx.fill();
+            if (activePin && activePin.cId === this.id && activePin.pIdx === idx) {
+                ctx.strokeStyle = '#00ff00'; ctx.lineWidth = 3; ctx.stroke();
+            }
+        });
+        ctx.restore();
+    }
+}
+
+const comps = {
+    room: new Component('room', 50, 100, 220, 520, '密闭烘箱'),
+    hRelay: new Component('hRelay', 380, 50, 150, 100, '加继电器'),
+    acPower: new Component('acPower', 410, 190, 150, 120, '交流电源'),
+    cRelay: new Component('cRelay', 380, 350, 150, 100, '减继电器'),
+    trans: new Component('trans', 380, 490, 200, 160, '温度变送器'),
+    pid: new Component('pid', 680, 40, 250, 480, '数字式温控器'),
+    dcPower: new Component('dcPower', 1000, 40, 100, 100, '24V 电源'),
+    monitor: new Component('monitor', 680, 540, 420, 220, '远程监控终端')
+};
+
+// 接线柱位置初始化
+comps.room.pins = [{dx:220,dy:50},{dx:220,dy:70},{dx:220,dy:180},{dx:220,dy:200},{dx:220,dy:400},{dx:220,dy:420},{dx:220,dy:440}];
+comps.hRelay.pins = [{dx:0,dy:30},{dx:0,dy:70},{dx:150,dy:30,color:'red'},{dx:150,dy:70,color:'black'}];
+comps.acPower.pins = [{dx:0,dy:30},{dx:0,dy:50},{dx:0,dy:80},{dx:0,dy:100}];
+comps.cRelay.pins = [{dx:0,dy:30},{dx:0,dy:70},{dx:150,dy:30,color:'red'},{dx:150,dy:70,color:'black'}];
+comps.trans.pins = [{dx:0,dy:40},{dx:0,dy:80},{dx:0,dy:120},{dx:200,dy:40,color:'red'},{dx:200,dy:120,color:'black'}];
+comps.pid.pins = [{dx:0,dy:40,color:'red'},{dx:0,dy:60,color:'black'},{dx:0,dy:110,color:'red'},{dx:0,dy:130,color:'black'},{dx:0,dy:320,color:'red'},{dx:0,dy:340,color:'black'},{dx:250,dy:40,color:'red'},{dx:250,dy:60,color:'black'}];
+comps.dcPower.pins = [{dx:0,dy:35,color:'red'},{dx:0,dy:65,color:'black'}];
+
+function runSimulation() {
+    if (!isPowerOn) { heatDuty = 0; coolDuty = 0; return; }
+
+    // 1. PT100 与变送逻辑 (三线制)
+    let rt = 100 * (1 + 0.003851 * actualTemp);
+    if(currentFault === 1) rt = 9999; 
+    if(currentFault === 2) rt = 0;
+    
+    let current = 4 + 16 * ((rt - (100 + transZero)) / (38.51 + transSpan));
+    if(currentFault === 2) current *= 3.6;
+    if(currentFault === 3) current *= 1.05;
+    if(currentFault === 4) current = 0;
+    current = Math.max(0, Math.min(21.6, current));
+
+    pvValue = (current < 4) ? -1 : (current > 20 ? 101 : (current - 4) / 16 * 100);
+
+    // 2. 动态 PID (先快后慢逻辑)
+    if(pidMode === 'AUTO') {
+        let error = svValue - pvValue;
+        let dynamicKp = kp * (0.01 + Math.abs(error) / 1200); // 偏差大时KP大(快)，偏差小时KP小(慢)et dynamicKp = kp * (0.6 + Math.abs(error) / 40);
+        
+        if (Math.abs(error) < 0.2) { heatDuty = 0; coolDuty = 0; } 
+        else {
+            integralError += error * 0.0003;//  integralError += error * 0.003
+            integralError = Math.max(-10, Math.min(10, integralError));
+            let output = (error * dynamicKp) + (integralError * ki);
+            if(output > 0) { heatDuty = Math.min(1.0, output/12); coolDuty = 0; }
+            else { coolDuty = Math.min(1.0, Math.abs(output)/12); heatDuty = 0; }
+        }
+    }
+
+    // 3. 热惯性物理引擎
+    thermalInertia += (heatDuty * 0.004) - (coolDuty * 0.007);
+    thermalInertia *= 0.985; // 阻尼系数
+    actualTemp += thermalInertia + (heatDuty * heatCapacity);
+
+    // 自然散热 (每10秒0.1度)
+    if(actualTemp > 20) actualTemp -= 0.00016; 
+    actualTemp = Math.max(20, Math.min(100, actualTemp));
+    fanAngle += coolDuty * 0.3;
+
+    monitorHistory.push({pv: pvValue, sv: svValue});
+    if(monitorHistory.length > 350) monitorHistory.shift();
+}
+
+function render() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    Object.values(comps).forEach(c => {
+        c.drawBase();
+        ctx.save(); ctx.translate(c.x, c.y);
+
+        if(c.id === 'room') {
+            // 加热盘丝
+            ctx.strokeStyle = (heatDuty > 0.05) ? '#ff4d00' : '#bdc3c7'; ctx.lineWidth=3;
+            ctx.beginPath(); for(let i=0; i<5; i++) ctx.arc(170, 60, 6+i*7, 0, Math.PI*2); ctx.stroke();
+            // 冷却风扇
+            ctx.save(); ctx.translate(170, 190); ctx.rotate(fanAngle);
+            ctx.fillStyle = '#3498db'; for(let i=0; i<3; i++){ ctx.rotate(Math.PI*2/3); ctx.beginPath(); ctx.ellipse(0,-16,10,22,0,0,Math.PI*2); ctx.fill(); }
+            ctx.restore();
+            // PT100 电阻符号
+            ctx.beginPath(); ctx.strokeStyle='#34495e'; ctx.lineWidth=1.5; ctx.moveTo(170, 390);
+            for(let i=0; i<10; i++) ctx.lineTo(170+(i%2?8:-8), 395+i*6); ctx.stroke();
+            // 数据屏
+            ctx.fillStyle='#000'; ctx.fillRect(10, 20, 80, 30); ctx.fillStyle='#0f0'; ctx.font='16px monospace'; ctx.fillText(actualTemp.toFixed(1)+"℃", 15, 42);
+            ctx.fillStyle='#000'; ctx.fillRect(10, 430, 110, 25); ctx.fillStyle='#0f0'; ctx.font='12px monospace';
+            let rStr = (currentFault===1)?"---":(100*(1+0.003851*actualTemp)).toFixed(2);
+            if(currentFault===2) rStr="0.00"; ctx.fillText(rStr+" 欧姆", 15, 447);
+        }
+
+        if(c.id.includes('Relay')) {
+            // 内部线圈
+            ctx.strokeStyle='#7f8c8d'; ctx.beginPath(); for(let i=0; i<6; i++) ctx.arc(110, 35+i*6, 10, 0, Math.PI); ctx.stroke();
+            // 衔铁开关
+            let on = (c.id==='hRelay'?heatDuty:coolDuty)>0.05;
+            ctx.beginPath(); ctx.strokeStyle=on?'#e74c3c':'#2c3e50'; ctx.lineWidth=3;
+            ctx.moveTo(35, 30); if(on) ctx.lineTo(35, 75); else ctx.lineTo(15, 55); ctx.stroke();
+            // PWM 波形
+            if(isPowerOn && on) {
+                ctx.beginPath(); ctx.strokeStyle='orange'; ctx.setLineDash([]);
+                for(let i=0; i<40; i++) ctx.lineTo(i*3.5, -35+(i%10<(on?7:2)?0:20)); ctx.stroke();
+            }
+        }
+
+        if(c.id === 'trans' && isPowerOn) {
+            ctx.fillStyle='#111'; ctx.fillRect(40, 100, 120, 40); ctx.fillStyle='#00d4ff'; ctx.font='18px monospace';
+            let curI = (pvValue<0)?3.6:(pvValue>100?21.6:4+(pvValue/100)*16);
+            if(currentFault===4) curI=0; ctx.fillText(curI.toFixed(2)+" mA", 55, 128);
+            // 滑块调节
+            ctx.fillStyle='#888'; ctx.fillRect(40, 40, 120, 8); ctx.fillRect(40, 75, 120, 8);
+            ctx.fillStyle='#3498db'; ctx.fillRect(100+transZero-5, 32, 10, 24); ctx.fillRect(100+transSpan-5, 67, 10, 24);
+            ctx.fillStyle='#2c3e50'; ctx.font='10px Arial'; ctx.fillText("零点", 10, 47); ctx.fillText("量程", 10, 82);
+        }
+
+        if(c.id === 'pid' && isPowerOn) {
+            ctx.fillStyle='#000'; ctx.fillRect(20, 20, 210, 85);
+            ctx.fillStyle='#ff3333'; ctx.font='26px monospace'; ctx.fillText("PV: "+(pvValue<0?"LLLL":(pvValue>100?"HHHH":pvValue.toFixed(1))), 40, 58);
+            ctx.fillStyle='#33ff33'; ctx.fillText("SV: "+svValue.toFixed(1), 40, 92);
+            // 参数与指示灯
+            ctx.fillStyle='#2c3e50'; ctx.font='12px Arial'; ctx.fillText(`P:${kp}  I:${ki}  D:${kd}`, 30, 135);
+            const ls = [{n:'RUN',c:'#0f0',v:true}, {n:'MAN',c:'#f39c12',v:pidMode==='MANUAL'}, {n:'AUTO',c:'#0f0',v:pidMode==='AUTO'}, {n:'ERR',c:'#e74c3c',v:currentFault>0}];
+            ls.forEach((l,i) => {
+                ctx.fillStyle=l.v?l.c:'#444'; ctx.beginPath(); ctx.arc(40+i*55, 165, 8, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle='#000'; ctx.fillText(l.n, 30+i*55, 195);
+            });
+            // 按钮与滑块
+            ctx.fillStyle='#34495e'; ctx.fillRect(30, 215, 90, 35); ctx.fillStyle='#fff'; ctx.fillText("手动/自动", 45, 237);
+            ctx.fillStyle='#888'; ctx.fillRect(30, 285, 190, 8); ctx.fillStyle='#e67e22'; ctx.fillRect(30+(svValue-20)/80*190-6, 275, 12, 28);
+            let mAct = pidMode==='MANUAL'; ctx.fillStyle=mAct?'#34495e':'#95a5a6';
+            ctx.fillRect(30, 335, 90, 35); ctx.fillRect(130, 335, 90, 35);
+            ctx.fillStyle=mAct?'#fff':'#666'; ctx.fillText("手动增加", 48, 357); ctx.fillText("手动减少", 148, 357);
+        }
+
+        if(c.id === 'monitor') {
+            ctx.fillStyle='#000'; ctx.fillRect(10, 30, 400, 140);
+            ctx.fillStyle='#fff'; ctx.font='11px Arial'; ctx.fillText("红色虚线: SV  |  绿色粗线: PV", 20, 22);
+            if(isPowerOn && monitorHistory.length>1){
+                ctx.strokeStyle='red'; ctx.setLineDash([5,5]); ctx.beginPath();
+                monitorHistory.forEach((h,i)=>ctx.lineTo(10+i*(400/350), 170-(h.sv/100*130))); ctx.stroke();
+                ctx.strokeStyle='#2ecc71'; ctx.setLineDash([]); ctx.lineWidth=3; ctx.beginPath();
+                monitorHistory.forEach((h,i)=>ctx.lineTo(10+i*(400/350), 170-(Math.max(0,Math.min(100,h.pv))/100*130))); ctx.stroke();
+            }
+            ctx.fillStyle='#fff'; ctx.font='13px Arial';
+            let msg = currentFault===0?"温度控制系统工作正常":"[故障警告] " + ["","PT100断路","PT100短路","变送器零点漂移","变送器输出断路"][currentFault];
+            ctx.fillText(msg, 20, 200);
+        }
+        ctx.restore();
+    });
+
+    // 绘制接线
+    ctx.lineWidth = 2.5; ctx.setLineDash([]);
+    connections.forEach(conn => {
+        const p1 = comps[conn.from.cId].pins[conn.from.pIdx], p2 = comps[conn.to.cId].pins[conn.to.pIdx];
+        ctx.strokeStyle = p1.color || '#2c3e50'; ctx.beginPath();
+        ctx.moveTo(comps[conn.from.cId].x+p1.dx, comps[conn.from.cId].y+p1.dy);
+        ctx.lineTo(comps[conn.to.cId].x+p2.dx, comps[conn.to.cId].y+p2.dy); ctx.stroke();
+    });
+    runSimulation(); requestAnimationFrame(render);
+}
+
+// --- 交互逻辑 ---
+canvas.onmousedown = (e) => {
+    const rect = canvas.getBoundingClientRect(); const mx = e.clientX-rect.left, my = e.clientY-rect.top;
+    let p = comps.pid, t = comps.trans;
+    if(mx > p.x+30 && mx < p.x+220 && my > p.y+275 && my < p.y+305) { isSliderActive = true; updateSV(mx); return; }
+    if(mx > p.x+30 && mx < p.x+120 && my > p.y+215 && my < p.y+250) { pidMode = pidMode==='AUTO'?'MANUAL':'AUTO'; return; }
+    if(pidMode==='MANUAL'){
+        if(mx>p.x+30 && mx<p.x+120 && my>p.y+335 && my<p.y+370) { heatDuty=0.5; return; }
+        if(mx>p.x+130 && mx<p.x+220 && my>p.y+335 && my<p.y+370) { coolDuty=0.5; return; }
+    }
+    if(mx > t.x+40 && mx < t.x+160) {
+        if(my > t.y+30 && my < t.y+55) { draggingSlider = 'zero'; return; }
+        if(my > t.y+65 && my < t.y+90) { draggingSlider = 'span'; return; }
+    }
+    for (let cId in comps) {
+        const c = comps[cId];
+        for (let i = 0; i < c.pins.length; i++) {
+            if (Math.hypot(c.x+c.pins[i].dx-mx, c.y+c.pins[i].dy-my) < 10) {
+                if (activePin) { connections.push({ from: activePin, to: { cId, pIdx: i } }); activePin = null; }
+                else activePin = { cId, pIdx: i }; return;
+            }
+        }
+    }
+    for (let cId in comps) {
+        let c = comps[cId]; if (mx > c.x && mx < c.x + c.w && my > c.y && my < c.y + c.h) {
+            draggingComp = c; dragOffset = { x: mx - c.x, y: my - c.y }; return;
+        }
+    }
+    activePin = null;
+};
+
+canvas.onmousemove = (e) => {
+    const rect = canvas.getBoundingClientRect(); const mx = e.clientX-rect.left, my = e.clientY-rect.top;
+    if (isSliderActive) updateSV(mx);
+    if (draggingSlider === 'zero') transZero = Math.max(-60, Math.min(60, mx - (comps.trans.x + 100)));
+    if (draggingSlider === 'span') transSpan = Math.max(-60, Math.min(60, mx - (comps.trans.x + 100)));
+    if (draggingComp) { draggingComp.x = mx-dragOffset.x; draggingComp.y = my-dragOffset.y; }
+};
+window.onmouseup = () => { draggingComp = null; isSliderActive = false; draggingSlider = null; if(pidMode==='MANUAL'){ heatDuty=0; coolDuty=0; } };
+
+function updateSV(mx) { svValue = 20 + Math.max(0, Math.min(1, (mx - (comps.pid.x + 30)) / 190)) * 80; }
+function togglePower() { isPowerOn = !isPowerOn; document.getElementById('start-btn').classList.toggle('active'); }
+function setFault(f) { currentFault = f; document.querySelectorAll('.fault').forEach(b => b.classList.remove('active')); if(f>0) document.getElementById('f'+f).classList.add('active'); }
+function resetSystem() { location.reload(); }
+
+function autoWire() {
+    connections = [
+        {from:{cId:'room', pIdx:4}, to:{cId:'trans', pIdx:0}}, {from:{cId:'room', pIdx:5}, to:{cId:'trans', pIdx:1}}, {from:{cId:'room', pIdx:6}, to:{cId:'trans', pIdx:2}}, 
+        {from:{cId:'trans', pIdx:3}, to:{cId:'pid', pIdx:4}}, {from:{cId:'trans', pIdx:4}, to:{cId:'pid', pIdx:5}}, 
+        {from:{cId:'pid', pIdx:0}, to:{cId:'hRelay', pIdx:2}}, {from:{cId:'pid', pIdx:1}, to:{cId:'hRelay', pIdx:3}},
+        {from:{cId:'pid', pIdx:2}, to:{cId:'cRelay', pIdx:2}}, {from:{cId:'pid', pIdx:3}, to:{cId:'cRelay', pIdx:3}},
+        {from:{cId:'pid', pIdx:6}, to:{cId:'dcPower', pIdx:0}}, {from:{cId:'pid', pIdx:7}, to:{cId:'dcPower', pIdx:1}},
+        {from:{cId:'acPower', pIdx:0}, to:{cId:'hRelay', pIdx:1}}, {from:{cId:'hRelay', pIdx:0}, to:{cId:'room', pIdx:0}},    
+        {from:{cId:'room', pIdx:1}, to:{cId:'acPower', pIdx:1}}, {from:{cId:'acPower', pIdx:2}, to:{cId:'room', pIdx:2}},   
+        {from:{cId:'room', pIdx:3}, to:{cId:'cRelay', pIdx:1}}, {from:{cId:'cRelay', pIdx:0}, to:{cId:'acPower', pIdx:3}}  
+    ];
+}
+
+render();
+</script>
+</body>
+</html>

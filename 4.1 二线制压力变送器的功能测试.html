@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>工业实验室 - 全可动精控版</title>
+    <style>
+        :root {
+            --bg: #2c3e50; --panel: #f7f9fb; --wire: #ff4757; --pipe: #3498db;
+            --lcd-bg: #1e272e; --lcd-text: #0be881;
+        }
+        body { font-family: 'Segoe UI', system-ui; background: var(--bg); margin: 0; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        .workbench { background: var(--panel); width: 1200px; height: 850px; position: relative; border: 10px solid #34495e; border-radius: 4px; box-shadow: 0 50px 100px rgba(0,0,0,0.5); background-image: radial-gradient(#d1d8e0 1px, transparent 1px); background-size: 30px 30px; }
+        
+        #topInfo { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 700px; background: rgba(45, 52, 54, 0.95); border-bottom: 4px solid #f1c40f; color: #fff; padding: 15px; border-radius: 8px; z-index: 3000; text-align: center; font-size: 16px; box-shadow: 0 10px 20px rgba(0,0,0,0.3); pointer-events: none; }
+        
+        canvas { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1000; }
+        
+        /* 通用组件样式 */
+        .comp, .ui-draggable { position: absolute; border: 2px solid #2d3436; border-radius: 6px; z-index: 10; cursor: move; box-shadow: 2px 5px 15px rgba(0,0,0,0.1); display: flex; flex-direction: column; background: #fff; }
+        .label, .ui-header { font-size: 11px; font-weight: bold; text-align: center; background: rgba(45, 52, 54, 0.9); color: white; padding: 6px; pointer-events: none; border-radius: 4px 4px 0 0; }
+        
+        /* 控制台特有样式 */
+        .ui-draggable { width: 220px; background: rgba(45, 52, 54, 0.98); color: white; z-index: 2000; border: 1px solid #636e72; }
+        .ui-header { background: #1e272e; color: #f1c40f; pointer-events: auto; cursor: move; }
+        .ui-body { padding: 15px; pointer-events: auto; }
+
+        /* 接线柱 */
+        .term { width: 22px; height: 22px; border-radius: 50%; position: absolute; border: 2px solid #333; z-index: 100; transform: translate(-50%, -50%); cursor: pointer; }
+        .term-p { background: #ff4757; } .term-n { background: #2f3542; }
+        .term-gas { width: 24px; height: 24px; border-radius: 4px; background: #95a5a6; border: 2px solid #333; }
+        .term.active { outline: 4px solid #f1c40f; box-shadow: 0 0 15px #f1c40f; }
+
+        /* 仪表 */
+        .gauge-face { width: 130px; height: 130px; border-radius: 50%; border: 3px solid #333; position: relative; background: #fff; margin: 5px; align-self: center; }
+        .tick { position: absolute; background: #333; left: 50%; bottom: 50%; transform-origin: bottom center; }
+        .tick-major { width: 2px; height: 10px; }
+        .tick-minor { width: 1px; height: 5px; }
+        .tick-text { position: absolute; font-size: 9px; font-weight: bold; color: #333; width: 30px; text-align: center; transform: translate(-50%, -50%); }
+        .needle { width: 2px; height: 55px; background: #e74c3c; position: absolute; bottom: 50%; left: 50%; transform-origin: bottom center; transition: 0.4s; z-index: 5; }
+        .lcd { background: var(--lcd-bg); color: var(--lcd-text); padding: 4px 10px; border-radius: 3px; font-family: monospace; font-size: 18px; border: 1px solid #444; text-align: center; width: 85px; margin: 5px auto; }
+
+        .btn { width: 100%; padding: 10px; margin-top: 8px; cursor: pointer; border: none; font-weight: bold; border-radius: 4px; color: white; font-size: 12px; }
+        input[type="range"] { cursor: pointer; height: 20px; width: 90%; align-self: center; }
+    </style>
+</head>
+<body>
+
+<div class="workbench" id="bench">
+    <div id="topInfo">模式：全自由交互。拖动标题栏可移动控制台。</div>
+    
+    <div id="uiBox" class="ui-draggable" style="left:50px; top:540px;">
+        <div class="ui-header">⚓ 控制台 (可拖动)</div>
+        <div class="ui-body">
+            <button class="btn" style="background:#0984e3;" onclick="nextWireStep()">🔌 演示连线</button>
+            <button class="btn" style="background:#e67e22;" onclick="undo()">↩️ 撤销一步</button>
+            <button class="btn" style="background:#8e44ad;" onclick="manualFivePoint()">📊 手动5点步进</button>
+            <button class="btn" style="background:#d63031;" onclick="location.reload()">🔄 重置实验</button>
+        </div>
+    </div>
+
+    <canvas id="canvas" width="1200" height="850"></canvas>
+
+    <div id="c_pwr" class="comp" style="width:110px; height:130px; left:50px; top:350px;">
+        <div class="label">24V DC POWER</div>
+        <div id="t_p_p" class="term term-p" style="left:100%; top:45px;" data-type="wire"></div>
+        <div id="t_p_n" class="term term-n" style="left:100%; top:105px;" data-type="wire"></div>
+    </div>
+    
+    <div id="c_sw" class="comp" style="width:100px; height:100px; left:200px; top:150px;">
+        <div class="label">回路总闸</div>
+        <div id="blade" style="position:absolute; width:40px; height:10px; background:#e74c3c; left:30px; top:45px; transform-origin:left center; transition:0.3s; transform:rotate(-45deg); cursor:pointer;" onclick="toggleSw()"></div>
+        <div id="t_s_i" class="term term-n" style="left:0%; top:50px;" data-type="wire"></div>
+        <div id="t_s_o" class="term term-n" style="left:100%; top:50px;" data-type="wire"></div>
+    </div>
+    
+    <div id="c_tr" class="comp" style="width:200px; height:180px; left:450px; top:260px;">
+        <div class="label">变送器精调 (ZERO/SPAN)</div>
+        <div style="padding:15px; display:flex; flex-direction:column; gap:10px;">
+            <input type="range" id="zS" min="-2" max="2" step="0.01" value="0" oninput="update()">
+            <input type="range" id="sS" min="0.8" max="1.2" step="0.01" value="1" oninput="update()">
+        </div>
+        <div id="t_t_p" class="term term-p" style="left:0%; top:50px;" data-type="wire"></div>
+        <div id="t_t_n" class="term term-n" style="left:100%; top:50px;" data-type="wire"></div>
+        <div id="t_t_g" class="term term-gas" style="left:50%; top:100%;" data-type="pipe"></div>
+    </div>
+    
+    <div id="c_reg" class="comp" style="width:180px; height:160px; left:820px; top:450px;">
+        <div class="label">精密压力调节阀</div>
+        <div id="pValDisp" style="font-size:24px; font-weight:bold; color:#2980b9; text-align:center; padding:10px;">0.00</div>
+        <div style="padding:10px; border-top:1px solid #ddd; display:flex; justify-content:center;">
+            <input type="range" id="pS" min="0" max="1" step="0.01" value="0" oninput="update()">
+        </div>
+        <div id="t_r_i" class="term term-gas" style="left:100%; top:45%;" data-type="pipe"></div>
+        <div id="t_r_o" class="term term-gas" style="left:0%; top:45%;" data-type="pipe"></div>
+    </div>
+
+    <div id="c_am" class="comp" style="width:160px; height:240px; left:420px; top:560px;">
+        <div class="label">电流测量 (mA)</div>
+        <div class="lcd" id="aLcd">0.00</div>
+        <div class="gauge-face" id="f_am"><div id="aNeedle" class="needle"></div></div>
+        <div id="t_a_n" class="term term-n" style="left:0%; top:210px;" data-type="wire"></div>
+        <div id="t_a_p" class="term term-p" style="left:100%; top:210px;" data-type="wire"></div>
+    </div>
+
+    <div id="c_pg" class="comp" style="width:160px; height:240px; left:730px; top:120px;">
+        <div class="label">标准压力 (MPa)</div>
+        <div class="lcd" id="pLcd">0.00</div>
+        <div class="gauge-face" id="f_pg"><div id="pNeedle" class="needle"></div></div>
+        <div id="t_g_i" class="term term-gas" style="left:50%; top:100%;" data-type="pipe"></div>
+    </div>
+    
+    <div id="c_gas" class="comp" style="width:90px; height:240px; left:1080px; top:400px; background:#ecf0f1; border:none;">
+        <div class="label" style="background:#333;">压缩空气瓶</div>
+        <div id="vHandle" style="position:absolute; width:45px; height:12px; background:#ff4757; left:-18px; top:75px; border-radius:6px; cursor:pointer; transform-origin:right center;" onclick="toggleV()"></div>
+        <div id="t_gas" class="term term-gas" style="left:0%; top:120px;" data-type="pipe"></div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('canvas'), ctx = canvas.getContext('2d');
+    let conns = [], vOn = false, swOn = false, wireIdx = 0, selectedTerm = null, history = [];
+
+    // --- 绘图函数 ---
+    function drawDetailedGauge(id, max) {
+        const face = document.getElementById(id);
+        for (let i = 0; i <= 50; i++) {
+            const angle = -120 + (i / 50) * 240;
+            const tick = document.createElement('div');
+            tick.className = i % 5 === 0 ? 'tick tick-major' : 'tick tick-minor';
+            tick.style.transform = `translateX(-50%) rotate(${angle}deg) translateY(-60px)`;
+            face.appendChild(tick);
+            if (i % 5 === 0) {
+                const val = (i / 50) * max;
+                const txt = document.createElement('div');
+                txt.className = 'tick-text';
+                const rad = (angle - 90) * (Math.PI / 180);
+                txt.style.left = (65 + 48 * Math.cos(rad)) + 'px';
+                txt.style.top = (65 + 48 * Math.sin(rad)) + 'px';
+                txt.innerText = val.toFixed(val === 0 || val === max ? 0 : 1);
+                face.appendChild(txt);
+            }
+        }
+    }
+
+    // --- 撤销管理 ---
+    function pushHistory(type, data) { history.push({ type, data }); }
+    function undo() {
+        if (!history.length) return;
+        const last = history.pop();
+        if (last.type === 'conn') { conns.pop(); if(wireIdx > 0) wireIdx--; }
+        else if (last.type === 'sw') swOn = last.data;
+        else if (last.type === 'valve') vOn = last.data;
+        update();
+    }
+
+    // --- 核心交互 ---
+    function toggleSw() { pushHistory('sw', swOn); swOn = !swOn; update(); }
+    function toggleV() { pushHistory('valve', vOn); vOn = !vOn; update(); }
+
+    document.querySelectorAll('.term').forEach(t => {
+        t.onclick = (e) => {
+            e.stopPropagation();
+            if (!selectedTerm) { selectedTerm = t; t.classList.add('active'); }
+            else {
+                if (selectedTerm !== t && selectedTerm.dataset.type === t.dataset.type) {
+                    conns.push({ from: selectedTerm.id, to: t.id, type: t.dataset.type });
+                    pushHistory('conn', null);
+                }
+                selectedTerm.classList.remove('active'); selectedTerm = null; update();
+            }
+        };
+    });
+
+    // 键盘精控：幅度0.01
+    document.addEventListener('keydown', (e) => {
+        if (e.target.type === 'range') {
+            if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                e.preventDefault();
+                const step = 0.01;
+                const cur = parseFloat(e.target.value);
+                e.target.value = (e.key === 'ArrowRight' ? cur + step : cur - step).toFixed(2);
+                update();
+            }
+        }
+    });
+
+    function update() {
+        const setP = parseFloat(document.getElementById('pS').value);
+        const z = parseFloat(document.getElementById('zS').value), s = parseFloat(document.getElementById('sS').value);
+        const p = vOn ? setP : 0;
+        document.getElementById('blade').style.transform = swOn ? "rotate(0deg)" : "rotate(-45deg)";
+        document.getElementById('vHandle').style.transform = vOn ? "rotate(90deg)" : "rotate(0deg)";
+        document.getElementById('pValDisp').innerText = p.toFixed(2);
+
+        const isC = (a,b) => conns.some(c=>(c.from===a && c.to===b)||(c.from===b && c.to===a));
+        const elec = isC('t_p_p','t_s_i') && swOn && isC('t_s_o','t_t_p') && isC('t_t_n','t_a_p') && isC('t_a_n','t_p_n');
+        const pTr = (isC('t_gas','t_r_i') && isC('t_r_o','t_t_g')) ? p : 0;
+        const pGa = (isC('t_gas','t_r_i') && isC('t_r_o','t_g_i')) ? p : 0;
+        const cur = elec ? (pTr * 16 * s + 4 + z) : 0;
+
+        document.getElementById('aLcd').innerText = cur.toFixed(2);
+        document.getElementById('pLcd').innerText = pGa.toFixed(2);
+        document.getElementById('aNeedle').style.transform = `rotate(${(Math.min(cur,22)/20*240-120)}deg)`;
+        document.getElementById('pNeedle').style.transform = `rotate(${(pGa*240-120)}deg)`;
+        renderWires(elec, isC('t_gas','t_r_i') && vOn);
+    }
+
+    function renderWires(eOn, gOn) {
+        ctx.clearRect(0,0,1200,850);
+        conns.forEach(c => {
+            const p1 = getCtr(c.from), p2 = getCtr(c.to);
+            ctx.beginPath(); ctx.lineWidth = c.type==='wire' ? 4 : 10;
+            ctx.strokeStyle = c.type==='wire' ? (eOn ? "#ff4757" : "#95a5a6") : (gOn ? "#3498db" : "#bdc3c7");
+            const midX = (p1.x + p2.x) / 2;
+            ctx.moveTo(p1.x, p1.y); ctx.lineTo(midX, p1.y); ctx.lineTo(midX, p2.y); ctx.lineTo(p2.x, p2.y);
+            ctx.stroke();
+            ctx.fillStyle = ctx.strokeStyle;
+            ctx.beginPath(); ctx.arc(p1.x, p1.y, 6, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(p2.x, p2.y, 6, 0, Math.PI*2); ctx.fill();
+        });
+    }
+
+    function getCtr(id) {
+        const el = document.getElementById(id), b = document.getElementById('bench').getBoundingClientRect(), r = el.getBoundingClientRect();
+        return { x: r.left - b.left + r.width/2, y: r.top - b.top + r.height/2 };
+    }
+
+    // --- 拖拽逻辑 (支持组件和控制台) ---
+    function makeDraggable(el) {
+        // 如果是控制台，只有header能触发拖拽
+        const handle = el.classList.contains('ui-draggable') ? el.querySelector('.ui-header') : el;
+        handle.onmousedown = (e) => {
+            if(e.target.classList.contains('term') || e.target.type==='range' || e.target.tagName === 'BUTTON') return;
+            let mx=e.clientX, my=e.clientY;
+            document.onmousemove = (ev) => {
+                el.style.top=(el.offsetTop-(my-ev.clientY))+"px";
+                el.style.left=(el.offsetLeft-(mx-ev.clientX))+"px";
+                mx=ev.clientX; my=ev.clientY; update();
+            };
+            document.onmouseup = () => document.onmousemove = null;
+        };
+    }
+
+    const steps = [
+        { msg: "1. 电源(+) -> 开关", act: () => conns.push({from:'t_p_p', to:'t_s_i', type:'wire'}) },
+        { msg: "2. 开关 -> 变送器(+)", act: () => conns.push({from:'t_s_o', to:'t_t_p', type:'wire'}) },
+        { msg: "3. 变送器(-) -> 电流表(+)", act: () => conns.push({from:'t_t_n', to:'t_a_p', type:'wire'}) },
+        { msg: "4. 电流表(-) -> 电源(-)", act: () => conns.push({from:'t_a_n', to:'t_p_n', type:'wire'}) },
+        { msg: "5. 气源 -> 调节阀", act: () => conns.push({from:'t_gas', to:'t_r_i', type:'pipe'}) },
+        { msg: "6. 调节阀 -> 变送器", act: () => conns.push({from:'t_r_o', to:'t_t_g', type:'pipe'}) },
+        { msg: "7. 调节阀 -> 压力表", act: () => conns.push({from:'t_r_o', to:'t_g_i', type:'pipe'}) }
+    ];
+
+    function nextWireStep() {
+        if(wireIdx < steps.length) { 
+            steps[wireIdx].act(); pushHistory('conn', null); 
+            document.getElementById('topInfo').innerText = steps[wireIdx].msg;
+            wireIdx++; update(); 
+        }
+    }
+
+    let fPoint = 0;
+    function manualFivePoint() {
+        const pts = [0, 0.25, 0.5, 0.75, 1.0];
+        document.getElementById('pS').value = pts[fPoint];
+        document.getElementById('topInfo').innerHTML = `5点步进: <span style="color:#f1c40f">${pts[fPoint].toFixed(2)} MPa</span> | 理论: ${(pts[fPoint]*16+4).toFixed(2)} mA`;
+        update(); fPoint = (fPoint + 1) % 5;
+    }
+
+    // 初始化运行
+    document.querySelectorAll('.comp, .ui-draggable').forEach(comp => {
+        if(!comp.classList.contains('ui-draggable') && comp.id !== 'c_gas') {
+            const h = Math.floor(Math.random()*360), s = 25, l = 92;
+            comp.style.backgroundColor = `hsl(${h}, ${s}%, ${l}%)`;
+        }
+        makeDraggable(comp);
+    });
+
+    drawDetailedGauge('f_am', 20); drawDetailedGauge('f_pg', 1);
+    update();
+</script>
+</body>
+</html>
