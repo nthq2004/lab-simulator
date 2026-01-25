@@ -8,6 +8,13 @@
             --bg: #2c3e50; --panel: #f7f9fb; --wire: #ff4757; --pipe: #3498db;
             --lcd-bg: #1e272e; --lcd-text: #0be881;
         }
+        @media screen and (orientation: portrait) and (max-width: 1024px) {
+    #main-wrapper {
+        width: 100vh; height: 100vw;
+        position: absolute; top: 0; left: 100vw;
+        transform: rotate(90deg); transform-origin: top left;
+    }
+}
         body { font-family: 'Segoe UI', system-ui; background: var(--bg); margin: 0; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
         .workbench { background: var(--panel); width: 1200px; height: 850px; position: relative; border: 10px solid #34495e; border-radius: 4px; box-shadow: 0 50px 100px rgba(0,0,0,0.5); background-image: radial-gradient(#d1d8e0 1px, transparent 1px); background-size: 30px 30px; }
         
@@ -280,4 +287,5 @@
     update();
 </script>
 </body>
+
 </html>
