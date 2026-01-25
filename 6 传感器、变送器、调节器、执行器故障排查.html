@@ -6,7 +6,13 @@
     <style>
         body { margin: 0; background: #1e272e; font-family: "Segoe UI", "Microsoft YaHei", sans-serif; overflow: hidden; user-select: none; }
         canvas { display: block; background: #ffffff; }
-        
+        @media screen and (orientation: portrait) and (max-width: 1024px) {
+    #main-wrapper {
+        width: 100vh; height: 100vw;
+        position: absolute; top: 0; left: 100vw;
+        transform: rotate(90deg); transform-origin: top left;
+    }
+}
         #ctrl-panel {
             position: absolute; left: 1230px; top: 35px; width: 230px;
             background: rgba(255, 255, 255, 0.95); border-left: 5px solid #2980b9;
@@ -384,4 +390,5 @@ function resetSystem() { location.reload(); }
 render();
 </script>
 </body>
+
 </html>
