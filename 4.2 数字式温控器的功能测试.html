@@ -5,6 +5,13 @@
     <title>数字温控全功能仿真</title>
     <style>
         body { margin: 0; background: #1a1a1a; font-family: "Microsoft YaHei", sans-serif; overflow: hidden; color: white; }
+        @media screen and (orientation: portrait) and (max-width: 1024px) {
+    #main-wrapper {
+        width: 100vh; height: 100vw;
+        position: absolute; top: 0; left: 100vw;
+        transform: rotate(90deg); transform-origin: top left;
+    }
+}
         #canvas { background: #ffffff; display: block; cursor: crosshair; }
         .panel {
             position: absolute; right: 20px; top: 20px; width: 280px;
@@ -306,4 +313,5 @@ function autoWire() {
 render();
 </script>
 </body>
+
 </html>
