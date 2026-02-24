@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <!--<meta name="viewport"
+        content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">--->
+    <title>仿真系统</title>
+    <link rel="stylesheet" href="./css/style.css">
+    <script src="./lib/konva.min.js"></script>
+</head>
+
+<body>
+    <div id="app"> <!--这是主界面-->
+
+
+        <div id="main"> <!--这是主显示区-->
+            <div id="toolbar"> <!--这是工具栏，包含11个按钮，分别是撤销、恢复、自动接线、5点步进、参数设置、系统重置、项目选择框、理论测试、完整演示、单步演示、演练、评估-->
+                <button id="btnUndo" title="撤销上一步">撤销</button>
+                <button id="btnRedo" title="恢复上一步">恢复</button>
+                <button id="btnSet" title="设置压力变送器量程和压力表量程">量程设置</button>
+                <button id="btnAutoWire" title="自动完成所有接线">自动接线</button>
+                <button id="btnStep5" title="依次设定调压阀输出压力0-0.25-0.5-0.75-1">5点步进</button>
+
+                <button id="faultBtn" title="选择故障进行设置">故障设置</button>
+                <button id="btnReset" title="实验重置">系统重置</button>
+           
+                <select id="taskSelect">
+                    <option value="" selected>请选择操作项目...</option>
+                    <option value="0">1. 压力变送器的功能测试(项目4.1)</option>
+                    <option value="1">2. 压力变送器电路断路故障排除(项目4.1)</option>
+                    <option value="2">3. 压力变送器气路漏气故障排除(项目4.1)</option>
+                </select>
+
+                <button id="btnShow">自动演示</button>
+                <button id="btnStep">单步演示</button>
+                <button id="btnTrain">演练</button>
+                <button id="btnEval">评估</button>
+            </div>
+            <!-- 故障设置弹窗 -->
+            <div id="faultModal">
+                <div class="modal-content">
+
+                    <div class="modal-header">
+                        故障场景配置
+                    </div>
+
+                    <div id="faultForm" class="modal-body">
+                        <label class="f-checkbox"><input type="checkbox" value="1"> 1. 压力变送器电路断路</label>
+                        <label class="f-checkbox"><input type="checkbox" value="2"> 2. 压力变送器气路漏气</label>
+
+                    </div>
+
+                    <div class="modal-footer">
+                        <button id="cancelBtn" class="btn-cancel">取消</button>
+                        <button id="applyBtn" class="btn-apply">应用设置</button>
+                    </div>
+
+                </div>
+            </div>
+
+            <div id="container"></div> <!--这是画布，画仿真系统-->
+
+        </div>
+    </div>
+
+    <script type="module" src="main.js"></script> <!--这是主程序-->
+</body>
+
+</html>
+<!--1.登录界面两个函数，角色选择时，切换邀请码输入、班级学号输入，教师不用输入班级-->
+<!--进入仿真系统的函数是doLogin(),没有参数；切换角色的参数是字符串“STUDENT”或者“TEACHER-->
+<!---->
+<!---->

@@ -1,0 +1,139 @@
+/*:root { --xxx }= 整个网页的“设计参数表 / 主题配置中心”*/
+:root {
+    --primary: #3498db;
+    --bg: #727885;
+    --text: #bfc7cb;
+    --hilight: #f0e69b;
+}
+body {
+    margin: 0;
+    padding: 0;
+    background: var(--text);
+    color: var(--bg);
+    font-family: system-ui;
+    overflow: hidden;
+}
+
+/* 顶部仿真工具箱 */
+#toolbar{
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px;
+    background: rgba(121, 148, 132, 0.85);
+    color: #fff;
+    z-index: 1000;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+}
+
+#toolbar button{
+    background: transparent;
+    border: 4px solid rgba(49, 44, 191, 0.25);
+    color: #fff;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+#toolbar button:hover{ background: rgba(54, 48, 48, 0.3); }
+
+/* ===== 故障弹窗 ===== */
+#faultModal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 2000;
+    justify-content: center;
+    align-items: center;
+}
+
+.modal-content {
+    background: #fff;
+    width: 400px;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+.modal-header {
+    background: #34495e;
+    color: white;
+    padding: 15px;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.modal-body {
+    padding: 20px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.modal-footer {
+    background: #f1f2f6;
+    padding: 15px;
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.btn-cancel {
+    padding: 8px 20px;
+    background: #95a5a6;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.btn-apply {
+    padding: 8px 25px;
+    background: #27ae60;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+/* ===== 故障复选框 ===== */
+.f-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.f-checkbox:hover {
+    background: #f8f9fa;
+}
+
+.f-checkbox input {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.f-checkbox:last-child {
+    border-bottom: none;
+}
+
+/* 让画布位于工具箱下方并占满剩余高度 */
+#container {
+    display: flex;
+    width: 100vw;
+    height: 100vh;
+    background: #e4e6e7; 
+    background-image: radial-gradient(rgba(0, 0, 0, .15) 1px, transparent 1px); /*点状背景*/
+    background-size: 50px 50px; /*点状背景间距*/
+}
+

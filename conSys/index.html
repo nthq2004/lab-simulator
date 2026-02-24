@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <title>船舶柴油机冷却水仿真系统 V6.0</title>
+
+    <!-- 外部CSS -->
+    <link rel="stylesheet" href="./css/style.css">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+    <!-- Konva -->
+    <script src="./lib/konva.min.js"></script>
+</head>
+
+<body>
+
+    <!-- 顶部工具栏 -->
+    <div id="toolbar">
+        <button id="btnUndo" title="撤销上一步">撤销</button>
+        <button id="btnRedo" title="恢复上一步">恢复</button>
+        <button id="btnAutoWire" title="自动完成所有接线">自动接线</button>
+        <button id="btnStartSys" title="起动水泵、开启电源">起动系统</button>
+        <button id="faultBtn" title="选择故障进行设置">故障设置</button>
+        <button id="btnReset" title="重置系统">重置系统</button>
+
+        <select id="taskSelect">
+            <option value="" selected>请选择操作项目...</option>
+            <option value="0">1. 冷却水温度控制系统运行</option>
+            <option value="1">2. PT100短路故障排除(项目6.1)</option>
+            <option value="2">3. PT100断路故障排除(项目6.1)</option>
+            <option value="3">4. 温度变送器输出开路故障排除(项目6.1)</option>
+            <option value="4">5. 温度变送器零点漂移故障排除(项目6.3)</option>
+            <option value="5">6. 温度变送器量程偏差故障排除(项目6.3)</option>
+            <option value="6">7. PID调节器参数失调故障排除(项目6.4)</option>
+            <option value="7">8. PID调节器输出回路故障排除(项目6.4)</option>
+            <option value="8">9. 三通调节阀执行机构卡死故障排除(项目6.2)</option>
+            <option value="9">10.三通调节阀信号输入回路开路故障排除</option>
+        </select>
+
+        <button id="btnShow">自动演示</button>
+        <button id="btnStep">单步演示</button>
+        <button id="btnTrain">演练</button>
+        <button id="btnEval">评估</button>
+    </div>
+
+    <!-- 故障设置弹窗 -->
+    <div id="faultModal">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                故障场景配置
+            </div>
+
+            <div id="faultForm" class="modal-body">
+                <label class="f-checkbox"><input type="checkbox" value="1"> 1. PT100 传感器短路</label>
+                <label class="f-checkbox"><input type="checkbox" value="2"> 2. PT100 传感器开路</label>
+                <label class="f-checkbox"><input type="checkbox" value="3"> 3. 温度变送器输出开路</label>
+                <label class="f-checkbox"><input type="checkbox" value="4"> 4. 温度变送器零点漂移</label>
+                <label class="f-checkbox"><input type="checkbox" value="5"> 5. 温度变送器量程偏差</label>
+                <label class="f-checkbox"><input type="checkbox" value="6"> 6. PID调节器参数失调</label>
+                <label class="f-checkbox"><input type="checkbox" value="7"> 7. PID调节器输出回路开路</label>
+                <label class="f-checkbox"><input type="checkbox" value="8"> 8. 三通调节阀执行机构卡死</label>
+                <label class="f-checkbox"><input type="checkbox" value="9"> 9. 三通调节阀信号输入回路开路</label>
+            </div>
+
+            <div class="modal-footer">
+                <button id="cancelBtn" class="btn-cancel">取消</button>
+                <button id="applyBtn" class="btn-apply">应用设置</button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Konva容器 -->
+    <div id="container"></div>
+
+    <!-- 主程序 -->
+    <script type="module" src="main.js"></script>
+
+</body>
+
+</html>

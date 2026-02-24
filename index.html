@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>自动控制仿真系统</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+        font-family: "Microsoft YaHei", Arial, sans-serif;
+        overflow: hidden;
+        color: white;
+        background: #0f2027;
+    }
+
+    canvas {
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: -1;
+    }
+
+    .container {
+        text-align: center;
+        padding-top: 80px;
+    }
+
+    h1 {
+        font-size: 46px;
+        letter-spacing: 4px;
+        margin-bottom: 60px;
+        text-shadow: 0 0 20px rgba(0, 180, 255, 0.8);
+    }
+
+    .links {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 25px;
+        width: 85%;
+        max-width: 1100px;
+        margin: auto;
+    }
+
+    .card {
+        padding: 25px;
+        border-radius: 14px;
+        text-decoration: none;
+        color: white;
+        font-size: 18px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(0, 180, 255, 0.3);
+        backdrop-filter: blur(6px);
+        transition: all 0.3s ease;
+        box-shadow: 0 0 15px rgba(0, 180, 255, 0.2);
+    }
+
+    .card:hover {
+        transform: translateY(-8px);
+        background: rgba(0, 180, 255, 0.15);
+        box-shadow: 0 0 25px rgba(0, 180, 255, 0.6);
+    }
+
+    footer {
+        position: fixed;
+        bottom: 20px;
+        width: 100%;
+        font-weight: bolder;
+        text-align: center;
+        font-size: 18px;
+        opacity: 0.8;
+    }
+</style>
+</head>
+<body>
+
+<canvas id="bg"></canvas>
+
+<div class="container">
+    <h1>自动控制仿真实训与评估</h1>
+
+    <div class="links">
+        <a href="pressTrans/index.html" class="card">4.1 压力变送器功能测试</a>
+        <a href="tempCon/index.html" class="card">4.2 温控器最小系统功能测试</a>        
+        <a href="conSys/index.html" class="card">6 传感器、变送器、调节器、执行器故障排除</a>
+
+
+    </div>
+</div>
+
+<footer>
+    制作单位 —— 江苏航院·轮机工程学院
+</footer>
+
+<script>
+const canvas = document.getElementById("bg");
+const ctx = canvas.getContext("2d");
+
+let particles = [];
+const particleCount = 120;
+
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+window.addEventListener("resize", resize);
+resize();
+
+class Particle {
+    constructor() {
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * canvas.height;
+        this.radius = Math.random() * 2 + 1;
+        this.dx = (Math.random() - 0.5) * 0.6;
+        this.dy = (Math.random() - 0.5) * 0.6;
+    }
+
+    draw() {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(0,180,255,0.7)";
+        ctx.fill();
+    }
+
+    update() {
+        this.x += this.dx;
+        this.y += this.dy;
+
+        if (this.x < 0 || this.x > canvas.width) this.dx *= -1;
+        if (this.y < 0 || this.y > canvas.height) this.dy *= -1;
+
+        this.draw();
+    }
+}
+
+function init() {
+    particles = [];
+    for (let i = 0; i < particleCount; i++) {
+        particles.push(new Particle());
+    }
+}
+
+function connect() {
+    for (let a = 0; a < particles.length; a++) {
+        for (let b = a; b < particles.length; b++) {
+            let dx = particles[a].x - particles[b].x;
+            let dy = particles[a].y - particles[b].y;
+            let distance = dx * dx + dy * dy;
+
+            if (distance < 12000) {
+                ctx.beginPath();
+                ctx.strokeStyle = "rgba(0,180,255,0.1)";
+                ctx.lineWidth = 1;
+                ctx.moveTo(particles[a].x, particles[a].y);
+                ctx.lineTo(particles[b].x, particles[b].y);
+                ctx.stroke();
+            }
+        }
+    }
+}
+
+function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    particles.forEach(p => p.update());
+    connect();
+    requestAnimationFrame(animate);
+}
+
+init();
+animate();
+</script>
+
+</body>
+</html>
