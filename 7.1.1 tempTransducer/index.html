@@ -20,13 +20,14 @@
         <button id="btnRedo" title="恢复上一步">恢复</button>
         <button id="btnAutoWire" title="自动完成所有接线">自动接线</button>
         <button id="btnStartSys" title="起动系统">起动系统</button>
+        <button id="btnFiveStep" title="起动系统">5点步进</button>        
         <button id="faultBtn" title="选择故障进行设置">故障设置</button>
         <button id="btnReset" title="重置系统">重置系统</button>
 
         <select id="taskSelect">
             <option value="" selected>请选择操作项目...</option>
-            <option value="0">1. PT100温度传感器的测试(项目7.1.1)</option>
-            <option value="1">2. K型热电偶的测试(项目7.1.1)</option>
+            <option value="0">1. 压力变送器好坏的判别(项目7.1.2)</option>
+
 
         </select>
 
@@ -45,8 +46,7 @@
             </div>
 
             <div id="faultForm" class="modal-body">
-                <label class="f-checkbox"><input id="check1" type="checkbox" value="1"> PT100热电阻断路故障</label>
-                <label class="f-checkbox"><input id="check1" type="checkbox" value="2"> PT100热电阻短路故障</label>                
+                <!-- <label class="f-checkbox"><input id="check1" type="checkbox" value="1"> 温度变送器输出回路开路</label> -->
             </div>
 
             <div class="modal-footer">
@@ -61,7 +61,7 @@
     <div id="container"></div>
 
     <!-- 主程序 -->
-    <script src="dist/bundle.d1bbe40d.js"></script>
+    <script src="dist/bundle.js"></script>
 
 </body>
 
