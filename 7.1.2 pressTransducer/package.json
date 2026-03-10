@@ -1,0 +1,22 @@
+{
+  "name": "7.1.2 pressTransducer",
+  "version": "1.0.0",
+  "main": "main.js",
+  "directories": {
+    "lib": "lib"
+  },
+"scripts": {
+  "build": "node build.js"
+},
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "webpack-cli": "^6.0.1",
+    "webpack-obfuscator": "^3.6.0"
+  },
+  "description": "",
+  "dependencies": {
+    "esbuild": "^0.27.3"
+  }
+}
