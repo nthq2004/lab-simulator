@@ -1,1 +1,0 @@
-New-Item -ItemType Junction -Path "node_modules" -Target "E:\BaiduSyncdisk\03 教学材料\仿真软件制作\node_modules"
